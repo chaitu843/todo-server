@@ -22,9 +22,9 @@ app.post('/login', (req, res) => {
     let userDetails = req.body;
     fireAuth.signInWithEmailAndPassword(userDetails.emailId, userDetails.password)
         .then(() => {
-            return {
+            res.json({
                 'emailId': userDetails.emailId,
-            }
+            })
         })       /// Send userDetails with JWT token
         .catch(error => {
             let errorCode = error.code;
@@ -33,11 +33,11 @@ app.post('/login', (req, res) => {
                     errorMsg: 'User doesn\'t exist'
                 })
             } else if (errorCode == "auth/wrong-password") {
-                res.status(400).json({
+                res.status(401).json({
                     errorMsg: 'Email and password doesn\'t match'
                 })
             } else {
-                res.status(400).json({
+                res.status(401).json({
                     errorMsg: 'unknown error'
                 })
             }
@@ -54,13 +54,19 @@ app.post('/register', (req, res) => {
 
     fireAuth.createUserWithEmailAndPassword(userDetails.emailId, userDetails.password)
         .then(() =>
-            firestore.collection('users')
+        res.json({
+            'emailId': userDetails.emailId,
+        })
         )
         .catch(error => {
             let errorCode = error.code;
             if (errorCode == "auth/email-already-in-use") {
                 res.status(401).json({
                     errorMsg: 'User already exists'
+                })
+            } else if (errorCode == "auth/weak-password") {
+                res.status(401).json({
+                    errorMsg: 'Password should contain minimum of 6 characters'
                 })
             } else {
                 res.status(400).json({
@@ -88,8 +94,10 @@ app.get('/logout', (req, res) => {
 */
 app.get('/getTodos/:id', (req, res) => {
     firestore.collection(`todos`).doc(req.params.id).get()
-        .then(snapshot =>
-            res.json(snapshot.data().todos)
+        .then(snapshot => {
+            if(snapshot.exists) res.json(snapshot.data().todos)
+            else res.json([])
+        }
         )
 })
 
@@ -100,24 +108,25 @@ app.get('/getTodos/:id', (req, res) => {
 app.post('/:userId/addTodo', (req, res) => {
     let task = req.body.task;
     let userRef = firestore.collection(`todos`).doc(req.params.userId);
+    let newTask = {
+        id: uuid.v4(),
+        text: task,
+        completed: false
+    };
 
     userRef.get()
         .then(userSnapshot => {
             if (userSnapshot.exists) {
-                userSnapshot.update({
-                    todos: firebase.firestore.FieldValue.arrayUnion({
-                        id: uuid.v4(),
-                        task: task,
-                        completed: false
-                    })
+                userRef.update({
+                    todos: firebase.firestore.FieldValue.arrayUnion(newTask)
                 })
             } else {
                 userRef.set({
-                    todos: []
+                    todos: [newTask]
                 })
             }
         })
-        .then(() => res.end());
+        .then(() => res.json(newTask));
 })
 
 /*
@@ -138,7 +147,9 @@ app.patch('/:userId/toggleTodo/:id', async (req, res) => {
     documentRef.update({
         todos: todos
     })
-        .then(() => res.end());
+        .then(() => res.json({
+            id: req.params.id
+        }));
 })
 
 /*
@@ -152,7 +163,11 @@ app.delete('/:userId/deleteTodo/:id', async (req, res) => {
     firestore.collection(`todos`).doc(req.params.userId).update({
         todos: firebase.firestore.FieldValue.arrayRemove(todo)
     })
-        .then(() => res.end());
+        .then(() => res.json(
+            {
+                id: req.params.id
+            }
+        ));
 })
 
 /*
