@@ -54,9 +54,9 @@ app.post('/register', (req, res) => {
 
     fireAuth.createUserWithEmailAndPassword(userDetails.emailId, userDetails.password)
         .then(() =>
-        res.json({
-            'emailId': userDetails.emailId,
-        })
+            res.json({
+                'emailId': userDetails.emailId,
+            })
         )
         .catch(error => {
             let errorCode = error.code;
@@ -95,7 +95,7 @@ app.get('/logout', (req, res) => {
 app.get('/getTodos/:id', (req, res) => {
     firestore.collection(`todos`).doc(req.params.id).get()
         .then(snapshot => {
-            if(snapshot.exists) res.json(snapshot.data().todos)
+            if (snapshot.exists) res.json(snapshot.data().todos)
             else res.json([])
         }
         )
@@ -108,11 +108,16 @@ app.get('/getTodos/:id', (req, res) => {
 app.post('/:userId/addTodo', (req, res) => {
     let task = req.body.task;
     let userRef = firestore.collection(`todos`).doc(req.params.userId);
+
     let newTask = {
         id: uuid.v4(),
         text: task,
         completed: false
     };
+
+    if (req.body.id) {
+        newTask = req.body;
+    }
 
     userRef.get()
         .then(userSnapshot => {
@@ -160,14 +165,23 @@ app.delete('/:userId/deleteTodo/:id', async (req, res) => {
     let documentRef = firestore.collection(`todos`).doc(req.params.userId);
     let todo = await documentRef.get();
     todo = todo.data().todos.find(todo => todo.id === req.params.id)
-    firestore.collection(`todos`).doc(req.params.userId).update({
-        todos: firebase.firestore.FieldValue.arrayRemove(todo)
-    })
-        .then(() => res.json(
+    if (todo == undefined) {
+        res.json(
             {
                 id: req.params.id
             }
-        ));
+        )
+    } else {
+        firestore.collection(`todos`).doc(req.params.userId).update({
+            todos: firebase.firestore.FieldValue.arrayRemove(todo)
+        })
+            .then(() => res.json(
+                {
+                    id: req.params.id
+                }
+            ));
+    }
+   
 })
 
 /*
